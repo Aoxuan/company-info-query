@@ -88,15 +88,41 @@ class ExactMatchTests(unittest.TestCase):
         self.assertIsNone(find_exact_match([], "甲公司"))
 
 
-class ConfigMissingMonicaTests(unittest.TestCase):
-    def test_get_qcc_monica_raises_when_missing(self):
+class ConfigMonicaFallbackTests(unittest.TestCase):
+    def test_get_qcc_monica_falls_back_to_main_when_missing(self):
+        """缺 Monica 两项时回退主账号(生产账号已开通全部接口,只填两项)。"""
         env = {k: v for k, v in os.environ.items()
                if k not in ("QCC_APP_KEY_MONICA", "QCC_SECRET_KEY_MONICA")}
+        env["QCC_APP_KEY"] = "MAIN_KEY"
+        env["QCC_SECRET_KEY"] = "MAIN_SECRET"
+        with mock.patch.dict(os.environ, env, clear=True):
+            from common.config import get_qcc_monica
+            creds = get_qcc_monica()
+            self.assertEqual(creds["app_key"], "MAIN_KEY")
+            self.assertEqual(creds["secret_key"], "MAIN_SECRET")
+
+    def test_get_qcc_monica_uses_monica_when_present(self):
+        env = {
+            "QCC_APP_KEY": "MAIN_KEY", "QCC_SECRET_KEY": "MAIN_SECRET",
+            "QCC_APP_KEY_MONICA": "MONICA_KEY", "QCC_SECRET_KEY_MONICA": "MONICA_SECRET",
+        }
+        with mock.patch.dict(os.environ, env, clear=True):
+            from common.config import get_qcc_monica
+            creds = get_qcc_monica()
+            self.assertEqual(creds["app_key"], "MONICA_KEY")
+            self.assertEqual(creds["secret_key"], "MONICA_SECRET")
+
+    def test_get_qcc_monica_raises_on_half(self):
+        """有 AppKey 无 Secret 仍报错,不拿主账号 Secret 拼 Monica Key。"""
+        env = {
+            "QCC_APP_KEY": "MAIN_KEY", "QCC_SECRET_KEY": "MAIN_SECRET",
+            "QCC_APP_KEY_MONICA": "MONICA_KEY",
+        }
         with mock.patch.dict(os.environ, env, clear=True):
             from common.config import get_qcc_monica
             with self.assertRaises(RuntimeError) as ctx:
                 get_qcc_monica()
-            self.assertIn("QCC_APP_KEY_MONICA", str(ctx.exception))
+            self.assertIn("QCC_SECRET_KEY_MONICA", str(ctx.exception))
 
     def test_get_qcc_main_raises_when_missing(self):
         env = {k: v for k, v in os.environ.items()

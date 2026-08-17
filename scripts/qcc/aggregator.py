@@ -16,6 +16,7 @@
 
 打包环境有两套企查查凭据:主账号(QCC_APP_KEY / QCC_SECRET_KEY)用于 2006/856/739/887,
 Monica 测试账号(QCC_APP_KEY_MONICA / QCC_SECRET_KEY_MONICA)固定用于 886/888/889(权限受限,主账号无权调用)。
+Monica 为可选:缺 QCC_APP_KEY_MONICA 时 get_qcc_monica() 回退主账号,生产账号已开通全部接口时只需填两项。
 """
 from __future__ import annotations
 from dataclasses import dataclass, field
@@ -203,7 +204,7 @@ class CompanyAggregator:
 
 
 def default_aggregator(actor: str = "", contract_id: str = "") -> CompanyAggregator:
-    """用 .env 中两套企查查凭据构造聚合器:主账号 + Monica(886/888/889)。"""
+    """用 .env 中企查查凭据构造聚合器:主账号 + Monica(886/888/889;缺 Monica 时 get_qcc_monica() 回退主账号)。"""
     return CompanyAggregator(
         QccClient(**get_qcc()), actor=actor, contract_id=contract_id,
         monica_client=QccClient(**get_qcc_monica()),

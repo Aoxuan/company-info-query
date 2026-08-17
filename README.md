@@ -27,9 +27,9 @@ macOS：`python3 -m pip install -r requirements.txt`
 
 复制 `.env.example` 为 `.env` 并填写。以下环境变量均为必填：
 
-- `QCC_APP_KEY`（主账号，用于 2006/856/739/887）
+- `QCC_APP_KEY`（主账号，用于 2006/856/739/887；缺 Monica 时也回退用于 886/888/889）
 - `QCC_SECRET_KEY`
-- `QCC_APP_KEY_MONICA`（Monica 测试账号，固定用于 886/888/889，缺失即失败，不回退主账号）
+- `QCC_APP_KEY_MONICA`（Monica 测试账号，可选，固定用于 886/888/889；缺则回退主账号，半套则失败；生产账号已开通全部接口时留空）
 - `QCC_SECRET_KEY_MONICA`
 - `MYSQL_HOST`
 - `MYSQL_PORT`

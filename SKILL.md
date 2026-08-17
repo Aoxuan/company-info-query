@@ -15,7 +15,7 @@ description: 拉取企业经营信息与风险预警。当用户要查询企业/
 
 1. 探测:Windows 跑 `py --version`,macOS 跑 `python3 --version`。没有命令或不是 3.11 → 停下来,把 [INSTALL.md](INSTALL.md) 交给用户。不要开浏览器下载,也不要在用户未确认时静默安装系统软件。
 2. 把本文件夹放入平台 skills 目录。
-3. 复制 `.env.example` 为 `.env`,填入企查查主账号 `QCC_APP_KEY`/`QCC_SECRET_KEY`、Monica 测试账号 `QCC_APP_KEY_MONICA`/`QCC_SECRET_KEY_MONICA`(固定用于 886/888/889,缺失即失败) **以及** 远程 MySQL `MYSQL_HOST`/`MYSQL_PORT`/`MYSQL_USER`/`MYSQL_PASSWORD`/`MYSQL_DB`(全部必填)。平台环境变量同样生效。
+3. 复制 `.env.example` 为 `.env`,填入企查查主账号 `QCC_APP_KEY`/`QCC_SECRET_KEY`(必填) **以及** 远程 MySQL `MYSQL_HOST`/`MYSQL_PORT`/`MYSQL_USER`/`MYSQL_PASSWORD`/`MYSQL_DB`(全部必填)。Monica 测试账号 `QCC_APP_KEY_MONICA`/`QCC_SECRET_KEY_MONICA` 为可选(固定用于 886/888/889;缺则回退主账号,半套则失败;生产账号已开通全部接口时留空即可)。平台环境变量同样生效。
 4. 安装依赖:`py -m pip install -r requirements.txt`(macOS 用 `python3 -m pip ...`;requests、python-dotenv、openpyxl、pymysql)。
 5. 自检:`py scripts/query.py check`(macOS 用 `python3 scripts/query.py check`;企查查凭据 + MySQL 连通均就绪才算通过)。
 
