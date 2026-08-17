@@ -13,7 +13,11 @@ from common import paths
 load_dotenv(paths.env_path())
 
 _QCC_REQUIRED = ["QCC_APP_KEY", "QCC_SECRET_KEY"]
+_QCC_MONICA_REQUIRED = ["QCC_APP_KEY_MONICA", "QCC_SECRET_KEY_MONICA"]
 _MYSQL_REQUIRED = ["MYSQL_HOST", "MYSQL_PORT", "MYSQL_USER", "MYSQL_PASSWORD", "MYSQL_DB"]
+
+# 固定使用 Monica 账号的接口(权限受限,主账号无权调用)
+QCC_MONICA_APIS = (886, 888, 889)
 
 
 def _require(name):
@@ -24,9 +28,18 @@ def _require(name):
 
 
 def get_qcc():
+    """主账号凭据,用于 2006/856/739/887。"""
     return {
         "app_key": _require("QCC_APP_KEY"),
         "secret_key": _require("QCC_SECRET_KEY"),
+    }
+
+
+def get_qcc_monica():
+    """Monica 测试账号凭据,固定用于 886/888/889。缺失即失败,不回退主账号。"""
+    return {
+        "app_key": _require("QCC_APP_KEY_MONICA"),
+        "secret_key": _require("QCC_SECRET_KEY_MONICA"),
     }
 
 
@@ -54,8 +67,10 @@ def get_mysql():
 # ---- 凭据体检:企查查 + MySQL 两组均必填 ----
 
 _CRED_GROUPS = [
-    ("企查查(必填)", _QCC_REQUIRED,
+    ("企查查-主账号(必填,用于 2006/856/739/887)", _QCC_REQUIRED,
      "技能根目录复制 .env.example 为 .env,填写 QCC_APP_KEY / QCC_SECRET_KEY(企查查开放平台)"),
+    ("企查查-Monica 账号(必填,用于 886/888/889)", _QCC_MONICA_REQUIRED,
+     "技能根目录 .env 补齐 QCC_APP_KEY_MONICA / QCC_SECRET_KEY_MONICA(测试账号,固定用于 886/888/889)"),
     ("远程 MySQL(必填,缺则无法使用本技能)", _MYSQL_REQUIRED,
      "技能根目录 .env 补齐 MYSQL_HOST / MYSQL_PORT / MYSQL_USER / MYSQL_PASSWORD / MYSQL_DB"),
 ]

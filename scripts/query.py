@@ -31,7 +31,7 @@ from common.config import check_all  # noqa: E402
 from common import paths  # noqa: E402
 from common.company_store import store_from_env  # noqa: E402
 from common.snapshot import save as save_snapshot  # noqa: E402
-from qcc.aggregator import default_aggregator  # noqa: E402
+from qcc.aggregator import default_aggregator, find_exact_match  # noqa: E402
 from qcc.grading import grade_risk  # noqa: E402
 from qcc.report import build_report, load_payloads  # noqa: E402
 
@@ -146,25 +146,80 @@ def cmd_search(keyword):
     except Exception as e:
         _emit({"ok": False, "error": "%s: %s" % (type(e).__name__, e)})
         return 1
+    cand_json = [
+        {"index": i, "name": c.name, "credit_code": c.credit_code,
+         "legal_person": c.legal_person, "status": c.status}
+        for i, c in enumerate(candidates)
+    ]
+    match = find_exact_match(candidates, keyword)
+    match_json = None
+    if match is not None:
+        for cj in cand_json:
+            if cj["name"] == match.name and cj["credit_code"] == match.credit_code:
+                match_json = cj
+                break
     _emit({
         "ok": True,
         "keyword": keyword,
         "count": len(candidates),
-        "candidates": [
-            {"index": i, "name": c.name, "credit_code": c.credit_code,
-             "legal_person": c.legal_person, "status": c.status}
-            for i, c in enumerate(candidates)
-        ],
+        "candidates": cand_json,
+        "exact_match": match is not None,
+        "match": match_json,
     })
     return 0
 
 
-def cmd_profile(name, credit_code, legal_person):
+def cmd_profile(name, credit_code, legal_person, force_refresh=False):
     if not _require_qcc():
         return 1
     store = _require_mysql_store()
     if store is None:
         return 1
+
+    # (2) 先查 MySQL:命中则返回库内已存档结果(不调企查查,零成本)
+    #     force_refresh(--refresh / 用户说"查最新")时跳过缓存,强制拉最新并写回新版本
+    if not force_refresh:
+        try:
+            cached = store.get_latest(credit_code=credit_code or "", name=name or "")
+        except Exception as e:
+            _emit({"ok": False, "error": "MySQL 读取失败: %s: %s" % (type(e).__name__, e)})
+            return 1
+        if cached is not None:
+            try:
+                report_file = build_report(
+                    cached.name, cached.payloads, paths.reports_dir(),
+                    profile={
+                        "query_date": cached.query_date,
+                        "risk_level": cached.risk_level,
+                        "hits": cached.hits,
+                        "called_apis": cached.called_apis,
+                        "cost": cached.cost,
+                    },
+                )
+            except Exception as e:
+                _emit({"ok": False, "error": "Excel 生成失败: %s: %s" % (type(e).__name__, e)})
+                return 1
+            _emit({
+                "ok": True,
+                "profile": {
+                    "name": cached.name,
+                    "credit_code": cached.credit_code,
+                    "legal_person": cached.legal_person,
+                    "status": cached.status,
+                    "three_element_ok": cached.three_element_ok,
+                    "risk_level": cached.risk_level,
+                    "hits": cached.hits,
+                    "called_apis": cached.called_apis,
+                    "cost": cached.cost,
+                    "snapshot_files": [],
+                    "report_file": report_file,
+                    "query_date": cached.query_date,
+                    "source": "cache",
+                },
+            })
+            return 0
+
+    # (3) 库中无该企业,真调企查查详情接口
     agg = default_aggregator(actor=ACTOR)
     try:
         p = agg.fetch_profile(name, credit_code, legal_person)
@@ -280,10 +335,19 @@ def main(argv):
             return 1
         return cmd_search(argv[2])
     if sub == "profile":
-        if len(argv) < 5:
-            _emit({"ok": False, "error": "profile 需要 <name> <credit_code> <legal_person> 三个参数(legal_person/credit_code 无可传空串)"})
+        # 支持 --refresh / --force / --latest 标志(可出现在任意位置),触发强制查最新绕过缓存
+        rest = argv[2:]
+        force_refresh = False
+        positional = []
+        for a in rest:
+            if a in ("--refresh", "--force", "--latest"):
+                force_refresh = True
+            else:
+                positional.append(a)
+        if len(positional) < 3:
+            _emit({"ok": False, "error": "profile 需要 <name> <credit_code> <legal_person> 三个参数(legal_person/credit_code 无可传空串);可选 --refresh 强制查最新绕过缓存"})
             return 1
-        return cmd_profile(argv[2], argv[3], argv[4])
+        return cmd_profile(positional[0], positional[1], positional[2], force_refresh=force_refresh)
     if sub == "export":
         if len(argv) < 3:
             _emit({"ok": False, "error": "export 需要 <name> 企业名参数(用于从已落盘快照重生成 Excel,不计费)"})

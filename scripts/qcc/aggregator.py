@@ -14,7 +14,8 @@
     故涉诉明细为必查项,基础成本 7.50 元/家。
   第三档(仅当 2006 命中 Exception):739(0.50)——Exception 字段在 2006 中有值,可门控。
 
-打包环境只有一套企查查凭据(QCC_APP_KEY / QCC_SECRET_KEY),全部接口走同一账号。
+打包环境有两套企查查凭据:主账号(QCC_APP_KEY / QCC_SECRET_KEY)用于 2006/856/739/887,
+Monica 测试账号(QCC_APP_KEY_MONICA / QCC_SECRET_KEY_MONICA)固定用于 886/888/889(权限受限,主账号无权调用)。
 """
 from __future__ import annotations
 from dataclasses import dataclass, field
@@ -22,7 +23,7 @@ from typing import Any, Dict, List, Optional
 import time
 
 from common.audit import trace_context
-from common.config import get_qcc
+from common.config import get_qcc, get_qcc_monica, QCC_MONICA_APIS
 from qcc.client import QccClient
 from qcc.grading import grade_risk
 
@@ -47,6 +48,18 @@ class Candidate:
     status: str = ""
 
 
+def find_exact_match(candidates: List[Candidate], keyword: str) -> Optional[Candidate]:
+    """在 886 候选中找企业名与输入完全一致者(去首尾空白后精确相等)。
+
+    用于 search 后自动选定:命中则直接进入 profile,无需让用户再选。
+    """
+    kw = (keyword or "").strip()
+    for c in candidates or []:
+        if (c.name or "").strip() == kw:
+            return c
+    return None
+
+
 @dataclass
 class CompanyProfile:
     name: str
@@ -65,13 +78,20 @@ class CompanyProfile:
 
 
 class CompanyAggregator:
-    def __init__(self, client: QccClient, actor: str = "", contract_id: str = ""):
+    def __init__(self, client: QccClient, actor: str = "", contract_id: str = "",
+                 monica_client: Optional[QccClient] = None):
         self.client = client
+        self.monica_client = monica_client  # 固定用于 886/888/889;None 时回退到主 client(仅用于无网络测试)
         self.actor = actor
         self.contract_id = contract_id
 
+    def _client_for(self, api_code: int) -> QccClient:
+        if api_code in QCC_MONICA_APIS and self.monica_client is not None:
+            return self.monica_client
+        return self.client
+
     def _call(self, api_code: int, **params) -> Any:
-        client = self.client
+        client = self._client_for(api_code)
         if api_code == 886:
             return client.fuzzy_search(params["search_key"])
         if api_code == 2006:
@@ -183,8 +203,11 @@ class CompanyAggregator:
 
 
 def default_aggregator(actor: str = "", contract_id: str = "") -> CompanyAggregator:
-    """用 .env 中 QCC_APP_KEY / QCC_SECRET_KEY 构造聚合器。"""
-    return CompanyAggregator(QccClient(**get_qcc()), actor=actor, contract_id=contract_id)
+    """用 .env 中两套企查查凭据构造聚合器:主账号 + Monica(886/888/889)。"""
+    return CompanyAggregator(
+        QccClient(**get_qcc()), actor=actor, contract_id=contract_id,
+        monica_client=QccClient(**get_qcc_monica()),
+    )
 
 
 if __name__ == "__main__":

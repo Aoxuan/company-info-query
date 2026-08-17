@@ -15,7 +15,7 @@ description: 拉取企业经营信息与风险预警。当用户要查询企业/
 
 1. 探测:Windows 跑 `py --version`,macOS 跑 `python3 --version`。没有命令或不是 3.11 → 停下来,把 [INSTALL.md](INSTALL.md) 交给用户。不要开浏览器下载,也不要在用户未确认时静默安装系统软件。
 2. 把本文件夹放入平台 skills 目录。
-3. 复制 `.env.example` 为 `.env`,填入企查查 `QCC_APP_KEY`/`QCC_SECRET_KEY` **以及** 远程 MySQL `MYSQL_HOST`/`MYSQL_PORT`/`MYSQL_USER`/`MYSQL_PASSWORD`/`MYSQL_DB`(全部必填)。平台环境变量同样生效。
+3. 复制 `.env.example` 为 `.env`,填入企查查主账号 `QCC_APP_KEY`/`QCC_SECRET_KEY`、Monica 测试账号 `QCC_APP_KEY_MONICA`/`QCC_SECRET_KEY_MONICA`(固定用于 886/888/889,缺失即失败) **以及** 远程 MySQL `MYSQL_HOST`/`MYSQL_PORT`/`MYSQL_USER`/`MYSQL_PASSWORD`/`MYSQL_DB`(全部必填)。平台环境变量同样生效。
 4. 安装依赖:`py -m pip install -r requirements.txt`(macOS 用 `python3 -m pip ...`;requests、python-dotenv、openpyxl、pymysql)。
 5. 自检:`py scripts/query.py check`(macOS 用 `python3 scripts/query.py check`;企查查凭据 + MySQL 连通均就绪才算通过)。
 
@@ -33,8 +33,9 @@ description: 拉取企业经营信息与风险预警。当用户要查询企业/
 py scripts/query.py search <企业名>
 ```
 
-输出 JSON:`{ok, keyword, count, candidates:[{index, name, credit_code, legal_person, status}, ...]}`。
+输出 JSON:`{ok, keyword, count, candidates:[{index, name, credit_code, legal_person, status}, ...], exact_match, match}`。
 
+- 若 `exact_match == true`:无需让用户选,直接用 `match` 的 `name`/`credit_code`/`legal_person` 进入第 2 步(用户输入的企业名与某候选完全一致,已自动选定)。
 - 若 `count == 0`:告诉用户"未找到匹配「<企业名>」的企业",请用户换个名称再试,结束。
 - 若 `count == 1`:无需让用户选,直接对该候选进入第 2 步(用其 name/credit_code/legal_person)。
 - 若 `count > 1`:把候选**编号展示**给用户(序号 + 名称 + 信用代码 + 法人 + 状态),请用户回复一个序号选定。用户选定后,取对应候选的 `name`/`credit_code`/`legal_person` 进入第 2 步。
@@ -47,17 +48,26 @@ py scripts/query.py search <企业名>
 py scripts/query.py profile "<name>" "<credit_code>" "<legal_person>"
 ```
 
-输出 JSON:`{ok, profile:{name, credit_code, legal_person, status, three_element_ok, risk_level, hits, called_apis, cost, snapshot_files, report_file}}`。
+**强制查最新**(用户说"查最新/查实时/刷新一下/重新查"等,或明确表示不要缓存数据时)加 `--refresh`,绕过 MySQL 缓存、强制调企查查并写回新版本:
+
+```
+py scripts/query.py profile --refresh "<name>" "<credit_code>" "<legal_person>"
+```
+
+输出 JSON:`{ok, profile:{name, credit_code, legal_person, status, three_element_ok, risk_level, hits, called_apis, cost, snapshot_files, report_file, query_date, source}}`。
+
+`profile` 会**先查 MySQL**:
+- 若库中已有该企业的存档记录,直接返回库内结果并重生成 Excel,**不调用企查查、不产生费用**(`source="cache"`)。
+- 若库中无记录,才真调企查查详情接口(2006/856/887/888/889,命异常加 739),落本地 JSON 快照 + 写一行进 MySQL + 出 Excel(`source="qcc_live"`,约 7.50 元/家)。MySQL 写入失败时把 `error` 转告用户,不要假装已落库。
 
 向用户展示(用自然语言,不要直接贴 JSON):
+- **数据来源**:先看 `source`——`cache` 告诉用户"本次返回的是数据库已存档结果(未调用企查查、未产生费用)";`qcc_live` 告诉用户"本次为实时查询企查查"。`cache` 命中时若用户想要最新数据,加 `--refresh` 重新跑一次即可强制拉最新并写回新版本。
 - **基本信息**:名称、统一社会信用代码、法定代表人、登记状态。
 - **三要素校验**:`three_element_ok`(true=一致 / false=不一致 / null=未核验)。
 - **风险等级**:`risk_level` ∈ low/medium/high/unknown,用"低/中/高/未知"表述。
 - **命中项**:逐条列出 `hits` 里的 `category` + `reason`(有 `count` 则附"共 N 条")。
-- **成本提示**:本次调用 `cost` 元(每次 profile 约 7.50 元),让用户对计费有感知。
-- **Excel 汇总**:`report_file` 是一份 `qcc_{企业名称}_{时间}.xlsx`,两列(指标名/指标值),已自动落盘到技能内 `data/snapshots/`。把路径告知用户,供法务/业务直接打开阅读。
-
-`profile` 会同时:本地 JSON 快照 + 远程 MySQL 插入一行 + Excel。MySQL 写入失败时把 `error` 转告用户,不要假装已落库。
+- **成本提示**:本次 `cost` 元(`cache` 命中为 0;`qcc_live` 约 7.50 元),让用户对计费有感知。
+- **Excel 汇总**:`report_file` 是一份 `qcc_{企业名称}_{时间}.xlsx`,两列(指标名/指标值),已自动落盘到技能内 `data/snapshots/`,并在返回的 `report_file` 中给出完整本地路径。这是本地文件落盘(不是浏览器下载),把路径告知用户,供法务/业务直接打开阅读。
 
 ### 第 2.5 步(可选):脱机重生成 Excel
 
