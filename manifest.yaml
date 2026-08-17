@@ -74,7 +74,7 @@ reuse:
 
 # 三端安装配置完全一致,无平台专属步骤
 packaging: |
-  运行时要求本机 Python 3.11(安装包与双路径说明见 INSTALL.md)。
+  运行时要求本机 Python 3.11,Windows 与 macOS 均可(见 INSTALL.md)。
   安装 = 把本文件夹放入平台 skills 目录(zcode / Cursor / Hermes 相同),
-  py -m pip install -r requirements.txt,复制 .env.example 为 .env 填值即可。
+  pip install -r requirements.txt(Windows: py; macOS: python3),复制 .env.example 为 .env 填值即可。
   本技能是一次性只读查询,无长流程/回调/跨天状态机。

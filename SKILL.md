@@ -11,13 +11,13 @@ description: 拉取企业经营信息与风险预警。当用户要查询企业/
 
 ## 前置:凭据与依赖
 
-首次使用前必须配齐(只需一次),三端(zcode / Cursor / Hermes)步骤相同。本机需要 **Python 3.11**。
+首次使用前必须配齐(只需一次),三端(zcode / Cursor / Hermes)步骤相同。本机需要 **Python 3.11**(Windows 与 macOS 均可)。下文 `py` 在 macOS 上换成 `python3`。
 
-1. 探测:`py --version`。没有 `py` 或不是 3.11 → 停下来,把 [INSTALL.md](INSTALL.md) 交给用户(路 A 自行安装 / 路 B 静默命令)。不要开浏览器下载,也不要在用户未确认时静默安装系统软件。
+1. 探测:Windows 跑 `py --version`,macOS 跑 `python3 --version`。没有命令或不是 3.11 → 停下来,把 [INSTALL.md](INSTALL.md) 交给用户。不要开浏览器下载,也不要在用户未确认时静默安装系统软件。
 2. 把本文件夹放入平台 skills 目录。
 3. 复制 `.env.example` 为 `.env`,填入企查查 `QCC_APP_KEY`/`QCC_SECRET_KEY` **以及** 远程 MySQL `MYSQL_HOST`/`MYSQL_PORT`/`MYSQL_USER`/`MYSQL_PASSWORD`/`MYSQL_DB`(全部必填)。平台环境变量同样生效。
-4. 安装依赖:`py -m pip install -r requirements.txt`(requests、python-dotenv、openpyxl、pymysql)。
-5. 自检:`py scripts/query.py check`(企查查凭据 + MySQL 连通均就绪才算通过)。
+4. 安装依赖:`py -m pip install -r requirements.txt`(macOS 用 `python3 -m pip ...`;requests、python-dotenv、openpyxl、pymysql)。
+5. 自检:`py scripts/query.py check`(macOS 用 `python3 scripts/query.py check`;企查查凭据 + MySQL 连通均就绪才算通过)。
 
 缺 Python / 企查查 / MySQL 时不要硬跑。缺 Python 指向 [INSTALL.md](INSTALL.md);缺凭据则按 `.env.example` 补齐技能根目录 `.env`。`check`/`profile` 缺 `MYSQL_*` 直接失败,不静默回退到只写本地。
 

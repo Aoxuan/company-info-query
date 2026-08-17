@@ -13,23 +13,19 @@
 
 ## 安装
 
-运行环境要求 Windows 64 位、Python 3.11。没有 Python 时，按 [INSTALL.md](INSTALL.md) 安装。
+运行环境要求 **Python 3.11**，Windows 与 macOS 均可。没有 Python 时，按 [INSTALL.md](INSTALL.md) 安装（Windows 用 `py`，macOS 用 `python3`）。
 
 把仓库克隆到宿主平台的 `skills` 目录：
 
-```powershell
+```
 git clone https://github.com/Aoxuan/company-info-query.git
 cd company-info-query
-py -m pip install -r requirements.txt
 ```
 
-复制配置模板并填写：
+Windows：`py -m pip install -r requirements.txt`  
+macOS：`python3 -m pip install -r requirements.txt`
 
-```powershell
-Copy-Item .env.example .env
-```
-
-以下环境变量均为必填：
+复制 `.env.example` 为 `.env` 并填写。以下环境变量均为必填：
 
 - `QCC_APP_KEY`
 - `QCC_SECRET_KEY`
@@ -41,9 +37,8 @@ Copy-Item .env.example .env
 
 配置后自检：
 
-```powershell
-py scripts/query.py check
-```
+Windows：`py scripts/query.py check`  
+macOS：`python3 scripts/query.py check`
 
 `check` 通过后，平台智能体可按 [SKILL.md](SKILL.md) 编排 `search → profile` 两阶段查询。宿主平台须允许技能执行本机终端命令；若 Hermes 使用隔离运行时，应在该运行时提供 Python 3.11 和上述环境变量。
 
